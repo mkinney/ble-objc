@@ -9,7 +9,9 @@
 # TODO: see if we can do a try/catch to print out a nice error message showing the Bluetooth permission (if missing)
 
 import time
+import random
 import struct
+#import logging
 
 import CoreBluetooth
 from PyObjCTools import AppHelper
@@ -27,6 +29,9 @@ TORADIO_UUID = CoreBluetooth.CBUUID.UUIDWithString_("0xF75C76D2-129E-4DAD-A1DD-7
 FROMRADIO_UUID = CoreBluetooth.CBUUID.UUIDWithString_("0x8BA2BCC2-EE02-4A55-A531-C525C5E454D5")
 FROMNUM_UUID = CoreBluetooth.CBUUID.UUIDWithString_("0xED9DA18C-A800-4F66-A670-AA7547E34453")
 
+
+random.seed()  # FIXME, we should not clobber the random seedval here, instead tell user they must call it
+
 class MyBLE(CoreBluetooth.NSObject):
     def init(self):
         # ALWAYS call the super's designated initializer.
@@ -38,6 +43,10 @@ class MyBLE(CoreBluetooth.NSObject):
         self.manager = None
         self.peripheral = None
         self.service = None
+
+        self.myInfo = None
+        self.node = None
+
         self.debug = False
 
         self.TORADIO_characteristic = None
@@ -115,12 +124,12 @@ class MyBLE(CoreBluetooth.NSObject):
         if self.debug:
             print("**discoverCharacteristics_forService_")
 
-    def centralManager_didDisconnectPeripheral_error_(self, a, b, c):
+    def centralManager_didDisconnectPeripheral_error_(self, manager, peripheral, error):
         if self.debug:
             print("**centralManager_didDisconnectPeripheral_error_")
-            print('a:', a)
-            print('b:', b)
-            print('c:', c)
+            print('manager:', manager)
+            print('peripheral:', peripheral)
+            print('error:', error)
 
     def peripheral_didReadRSSI_error(self):
         if self.debug:
@@ -180,6 +189,8 @@ class MyBLE(CoreBluetooth.NSObject):
             print("**centralManager_didConnectPeripheral_")
             print(repr(peripheral.UUID()))
         peripheral.setDelegate_(self)
+        print('peripheral.delegate():', peripheral.delegate())
+        print('self.peripheral.delegate():', self.peripheral.delegate())
         self.peripheral.discoverServices_([MESHTASTIC_SERVICE])
 
     def peripheral_didDiscoverDescriptorsForCharacteristic_error_(self, a, b, c):
@@ -208,14 +219,22 @@ class MyBLE(CoreBluetooth.NSObject):
             print(f"characteristic.UUID:{characteristic.UUID()}")
             if characteristic.UUID() == TORADIO_UUID:
                 self.TORADIO_characteristic = characteristic
-                # TODO: but need proto
-                toRadio = mesh_pb2.ToRadio()
-                #toRadio.wantConfigID = 32168
-                #let binaryData: Data = try! toRadio.serializedData()
-                #peripheral.writeValue(binaryData, for: characteristic, type: .withResponse)
+
+                startConfig = mesh_pb2.ToRadio()
+                # TODO: use random
+                #configId = random.randint(0, 0xffffffff)
+                configId = 32168
+                startConfig.want_config_id = configId
+                print(f'startConfig:{startConfig}')
+                binaryData = mesh_pb2.ToRadio.SerializeToString(startConfig)
+                print(f'binaryData:{binaryData}')
+                peripheral.writeValue_forCharacteristic_type_(binaryData, self.TORADIO_characteristic, CoreBluetooth.CBCharacteristicWriteWithResponse)
+                # TODO: getting Encryption is insufficient error
+
             elif characteristic.UUID() == FROMRADIO_UUID:
                 self.FROMRADIO_characteristic = characteristic
                 peripheral.readValueForCharacteristic_(self.FROMRADIO_characteristic)
+
             elif characteristic.UUID() == FROMNUM_UUID:
                 self.FROMNUM_characteristic = characteristic
                 peripheral.setNotifyValue_forCharacteristic_(True, self.FROMNUM_characteristic)
@@ -239,13 +258,41 @@ class MyBLE(CoreBluetooth.NSObject):
             print('peripheral:', peripheral)
             print('characteristic:', characteristic)
             print('error:', error)
+        returnValue = None
         if characteristic.UUID() == FROMNUM_UUID:
             peripheral.readValueForCharacteristic_(self.FROMNUM_characteristic)
-            # TODO:
-            #let characteristicValue: [UInt8] = [UInt8](characteristic.value!)
-            #let bigEndianUInt32 = characteristicValue.withUnsafeBytes { $0.load(as: UInt32.self) }
-            #let returnValue = CFByteOrderGetCurrent() == CFByteOrder(CFByteOrderLittleEndian.rawValue) ? UInt32(bigEndian: bigEndianUInt32) : bigEndianUInt32
+            characteristicValue = characteristic.value
+            print(f'characteristicValue:{characteristicValue}')
+            returnValue = characteristicValue
+            if returnValue is None:
+                return
+            # TODO: might have to do some bigEndian and byte order stuff
+        elif characteristic.UUID() == FROMRADIO_UUID:
+            decodedInfo = mesh_pb2.FromRadio(characteristic.value)
+            print(f'decodedInfo:{decodedInfo}')
 
+            # MyInfo Data
+            if decodedInfo.myInfo.myNodeNum != 0:
+                self.myInfo.myNodeNum = decodedInfo.myInfo.myNodeNum
+                self.myInfo.hasGps = decodedInfo.myInfo.hasGps_p
+                self.myInfo.numBands = decodedInfo.myInfo.numBands
+                # TODO: more fields here
+
+            # NodeInfo Data
+            if decodedInfo.nodeInfo.num != 0:
+                self.node.id = decodedInfo.nodeInfo.num
+                self.node.num = decodedInfo.nodeInfo.num
+                # TODO: more fields here
+
+            # Handle assorted app packets
+            if decodedInfo.packet.id  != 0:
+                # Text Message App - Primary Broadcast User
+                if decodedInfo.packet.decoded.portnum == PortNum.textMessageApp:
+                    # TODO: utf-8 encoding
+                    messageText = decodedInfo.packet.decoded.payload
+                # TODO: more types here
+
+# TODO: add sendtext
 
 if "__main__" == __name__:
     import argparse
