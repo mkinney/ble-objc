@@ -1,1 +1,1 @@
-pip install pyobjc-framework-CoreBluetooth
+pip install pyobjc-framework-CoreBluetooth protobuf

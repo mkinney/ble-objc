@@ -18,6 +18,9 @@ import objc
 from constants import C
 import datetime
 
+#from google.protobuf.json_format import MessageToJson
+
+import mesh_pb2 as mesh_pb2
 
 MESHTASTIC_SERVICE = CoreBluetooth.CBUUID.UUIDWithString_('0x6BA1B218-15A8-461F-9FA8-5DCAE273EAFD')
 TORADIO_UUID = CoreBluetooth.CBUUID.UUIDWithString_("0xF75C76D2-129E-4DAD-A1DD-7866124401E7")
@@ -206,7 +209,7 @@ class MyBLE(CoreBluetooth.NSObject):
             if characteristic.UUID() == TORADIO_UUID:
                 self.TORADIO_characteristic = characteristic
                 # TODO: but need proto
-                #var toRadio: ToRadio = ToRadio()
+                toRadio = mesh_pb2.ToRadio()
                 #toRadio.wantConfigID = 32168
                 #let binaryData: Data = try! toRadio.serializedData()
                 #peripheral.writeValue(binaryData, for: characteristic, type: .withResponse)
