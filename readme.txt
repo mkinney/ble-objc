@@ -1,3 +1,5 @@
+This is a temp repo to see if I can get bluetooth working from python for the Meshtastic-python repo.
+
 pip install pyobjc-framework-CoreBluetooth protobuf
 
 

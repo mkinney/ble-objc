@@ -8,6 +8,8 @@
 # Note: If there is an error, you may need to open up Security and add iTerm to the Bluetooth section.
 # TODO: see if we can do a try/catch to print out a nice error message showing the Bluetooth permission (if missing)
 
+# TODO: check the return value for each callback
+
 import time
 import random
 import struct
@@ -107,6 +109,7 @@ class MyBLE(CoreBluetooth.NSObject):
         if self.debug:
             print("**centralManagerDidUpdateState_")
             print(f'manager:{manager}')
+        # TODO: add try/catch here if no Bluetooth permission in iTerm
         self.manager = manager
         print('manager:', self.manager)
         print('is scanning:', manager.isScanning())
@@ -196,6 +199,11 @@ class MyBLE(CoreBluetooth.NSObject):
     def peripheral_didDiscoverDescriptorsForCharacteristic_error_(self, a, b, c):
         if self.debug:
             print("**peripheral_didDiscoverDescriptorsForCharacteristic_error_")
+            print('a:', a)
+            print('b:', b)
+            print('c:', c)
+            # TODO: get user description descriptor?
+            # Note: This event does not seem to fire
 
     def peripheral_didDiscoverServices_(self, peripheral, services):
         if self.debug:
